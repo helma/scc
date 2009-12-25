@@ -1,0 +1,7 @@
+- @tracks.each do |track|
+  %p
+    %a{:href => track.attributes["id"]} #{track.attributes["title"]}
+
+    = track.attributes["user"].attributes["username"]
+    = track.attributes["id"]
+
