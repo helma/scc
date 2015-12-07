@@ -1,0 +1,146 @@
+#!/usr/bin/env ruby
+require 'rubygems'
+require 'soundcloud'
+require 'oauth'
+require 'restclient'
+require 'yajl'
+
+SCDIR = "#{ENV['HOME']}/.soundcloud"
+access_token = YAML.load_file(File.join(SCDIR,"access_token.yaml"))
+
+@consumer  = YAML.load_file(File.join(SCDIR,"consumer.yaml"))
+#@sc        = Soundcloud.register(:access_token => access_token)
+@sc        = Soundcloud.new(:access_token => access_token)
+@favorites = YAML.load_file(File.join(SCDIR,"favorites.yaml"))
+@artists   = YAML.load_file(File.join(SCDIR,"artists.yaml"))
+@history   = YAML.load_file(File.join(SCDIR,"history.yaml"))
+@exclude   = YAML.load_file(File.join(SCDIR,"exclude.yaml"))
+                            
+#@me = @sc.User.find_me
+@artist = @artists.last unless @artist = ARGV.shift
+@mode = "favorites" unless @mode = ARGV.shift
+@sort = "quality"
+@index = 0
+
+def play(index = @index)
+  @pid = fork do
+    @tracks[index..@tracks.size].each do |track|
+      `echo \"index \\"#{@tracks.index(track)}\\"\" > #{ENV['HOME']}/.soundcloud/pipe`
+      print track["user"]["permalink"]+": "
+      print track["permalink"]
+      puts " (#{track["favoritings_count"]}/#{track["playback_count"]})"
+      command = "mplayer \"#{track["stream_url"]}?consumer_key=#{@consumer[:key]}\" 2>/dev/null "
+      begin
+        `#{command}` 
+      rescue => e
+        puts "Soundcloud error: #{e.inspect}"
+      end
+    end
+  end
+end
+
+def stop
+  Process.kill "TERM", @pid if @pid
+end
+
+def forward
+  stop
+  index @index+1
+  play
+end
+
+# sort methods
+def shuffle
+  @tracks.shuffle!
+end
+
+def quality
+  @tracks.sort!{|a,b| a["favoritings_count"].to_f/a["playback_count"] <=>  b["favoritings_count"].to_f/b["playback_count"] }
+end
+
+def index(index)
+  @index = index.to_i
+  @history << @tracks[@index]["permalink"]
+  File.open(File.join(SCDIR,"history.yaml"),"w+"){|f| f.puts @history.to_yaml}
+  @artist = @tracks[@index]["user"]["permalink"]
+  @artists << @artist
+  @artists.uniq!
+  File.open(File.join(SCDIR,"artists.yaml"),"w+"){|f| f.puts @artists.to_yaml}
+end
+
+def sort(method)
+  @sort = method
+end
+
+def mode(mode)
+  @mode = mode
+end
+
+def exclude
+  @excludes << @tracks[@index]["permalink"]
+  File.open(File.join(SCDIR,"excludes.yaml"),"w+"){|f| f.puts @excludes.to_yaml}
+end
+
+def favorite
+  @favorites << @tracks[@index]["permalink"]
+  File.open(File.join(SCDIR,"favorites.yaml"),"w+"){|f| f.puts @favorites.to_yaml}
+  #@me.favorites << @tracks[@index]
+end
+
+def follow_tracks
+  tracks
+  eval @sort
+  stop
+  play
+end
+
+def follow_favorites
+  favorites
+  eval @sort
+  stop
+  play
+end
+
+def artists
+  @artist = `echo -e \"#{@artists.join("\n")}\" |dmenu -l 50`
+  eval @mode
+  eval @sort
+  stop
+  play
+end
+
+def tracks
+  # TODO pagination
+  #@tracks = @sc.User.find(@artist).tracks.collect{|t| t.permalink if t.streamable}
+  begin
+    #tracks = Yajl::Parser.new.parse(RestClient.get("http://soundcloud.com/users/#{@artist}/tracks.json?consumer_key=#{@consumer[:key]}").body)
+    #@tracks = tracks.collect{|t| t if t["stream_url"]}.compact
+    puts "http://soundcloud.com/users/#{@artist}/tracks"
+    @tracks = client.get "http://soundcloud.com/users/#{@artist}/tracks"
+    puts @tracks.inspect
+  rescue => e
+    puts "Soundcloud error: #{e.inspect}"
+  end
+end
+
+def favorites
+  # TODO pagination
+  # user.favorites does not work: permission problems
+  begin
+    tracks = Yajl::Parser.new.parse(RestClient.get("http://soundcloud.com/users/#{@artist}/favorites.json?consumer_key=#{@consumer[:key]}").body)
+    @tracks = tracks.collect{|t| t if t["stream_url"]}.compact
+  rescue => e
+    puts "Soundcloud error: #{e.inspect}"
+  end
+end
+
+eval @mode
+eval @sort
+play
+
+input = File.open("#{ENV['HOME']}/.soundcloud/pipe", 'r+')
+while true
+  i = input.gets.chomp
+  puts i
+  eval i
+end

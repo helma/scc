@@ -1,0 +1,7 @@
+!!! Strict
+%html
+  %head
+    %meta{:"http-equiv" => "refresh", :content => "1; url=#{@next_uri}"}
+    %meta{:"http-equiv" => "Pragma", :content => "no-cache"}
+  %body
+    = @next_uri

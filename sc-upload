@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+require 'rubygems'
+require 'soundcloud'
+require 'oauth'
+access_token = YAML.load_file("#{ENV['HOME']}/.soundcloud/access_token.yaml")
+sc = Soundcloud.register(:access_token => access_token)
+me = sc.User.find_me
+users = ["Alfadeo","sekim","dj-dnice"]
+track = sc.Track.new
+print "Description: "
+track.description = STDIN.gets.chomp
+track.sharing = 'private'
+track.downloadable = true
+track.title = File.basename ARGV.first
+track.asset_data = File.new ARGV.first
+track.user = me
+puts "uploading #{ARGV.first}"
+track.save
+puts "adding permissions for #{ARGV.first}"
+users.each { |u| track.permissions << sc.User.find(u) }
+track.save

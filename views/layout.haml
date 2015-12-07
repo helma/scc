@@ -1,0 +1,24 @@
+!!!
+%html
+  %head
+    %meta{ :content => "text/html; charset=us-ascii", "http-equiv" => "content-type" }
+    %meta{ :name => "robots", :content => "all" }
+    %meta{ :name => "author", :content => "Christoph Helma" }
+    - if @sc_track
+      %meta{:"http-equiv" => "refresh", :content => "#{@sc_track.duration/1000}"}
+    %link{:rel=>'stylesheet', :href=>'/style.css', :type => "text/css"}       
+    %title soundcloud crawler
+  %body{:onbeforeunload => "document.forms['parameters'].submit();"}
+
+    -# .index
+      %ul
+        %li{:class => ("selected" if /^\/$/ =~ request.path )}
+          %a{ :href => "/" } Home
+        %li{:class => ("selected" if /play/ =~ request.path )}
+          %a{ :href => "/software" } Play
+        %li{:class => ("selected" if /tag/ =~ request.path )}
+          %a{ :href => "/services" } Tag
+        %li{:class => ("selected" if /playlist/ =~ request.path )}
+          %a{ :href => "/projects" } Playlist
+    .content
+      = yield

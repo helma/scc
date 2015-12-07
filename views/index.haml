@@ -1,7 +1,6 @@
 - @tracks.each do |track|
+  - sctrack = @@client.Track.find(track.sc_id)
   %p
-    %a{:href => track.attributes["id"]} #{track.attributes["title"]}
-
-    = track.attributes["user"].attributes["username"]
-    = track.attributes["id"]
-
+    = player sctrack, :autoplay => false
+    = link_to "more tracks", "/play/#{sctrack.user.permalink}"
+    = link_to "follow", "/play/#{sctrack.user.permalink}/next"

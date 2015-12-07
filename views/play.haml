@@ -1,45 +1,26 @@
-%html
-  %head
-    %meta{:"http-equiv" => "refresh", :content => "#{@track.duration/1000}; url=#{@next_track.attributes["id"]}"}
+- player_value = "http://player.soundcloud.com/player.swf?url=#{URI.encode @sc_track.permalink_url}&amp;show_comments=false&amp;player_type=tiny&amp;auto_play=true"
 
-  %body
+%h1
+  = @sc_track.title
+  (
+  = @username
+  )
 
-    %embed{:src => @track.stream_url, :autostart => true, :loop => false, :volume => 100, :hidden => true}
-    %h1
-      = @track.title
+%form{:name => 'parameters', :action => "/play/#{@username}", :method => "GET"}
 
-    = @track.username
-    ,
-    - min = @track.duration/1000/60
-    - sec = (@track.duration - 60000*min)/1000
-    = "#{min}'#{sec}\""
-    ,
-    = @played
-    plays
+  = player @sc_track
+  - min = @sc_track.duration/1000/60
+  - sec = (@sc_track.duration - 60000*min)/1000
+  = "#{min}'#{sec}\""
+  ,
+  = @track.played
+  plays
+  = Track.expected_quality(@sc_track)
 
-    %p
-      -# %form{:action => "/#{@track.sc_id}", :method => "POST"}
-      %form{:action => "/#{@next_track.attributes['id']}", :method => "POST"}
-        %input{:type => 'hidden', :name => 'track_id', :value => @track.id}
+  %input{:type => 'hidden', :name => :track_id, :value => @track.id} 
+  -# why is checkbox checked??
+  %input{:type => 'checkbox', :name => :favorite, :value => "true", :checked => @track.favorite } Favorite
 
-        - if @track.favorite
-          %input{:type => 'radio', :name => "quality", :value => "remove"} remove
-
-        - (1..5).each do |r|
-          %input{:type => 'radio', :name => "quality", :value => r, :checked => @track.quality == r || nil} #{r}
-          
-        &nbsp; &nbsp; 
-
-        - ["Ambient","House","Techno","Dubstep","DnB","Breaks","Other"].each do |s|
-          %input{:type => 'checkbox', :name => "style[#{s}]", :value => 'true', :checked => @styles.include?(s)||nil} #{s}
-
-        &nbsp; &nbsp; 
-        %input{:type => 'submit', :value => @next_track.attributes["title"]}
-
-    %hr
-      -# params.to_yaml
-      -# %a{:href => @next_track.attributes["id"]} #{@next_track.attributes["title"]}
-
-
-
-
+%p
+  = link_to "next track", "/play/#{@username}" 
+  = link_to "next artist", "/play/#{@username}/next" 

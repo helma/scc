@@ -1,0 +1,27 @@
+    %p
+      -# %form{:action => "/#{@track.sc_id}", :method => "POST"}
+      %form{:action => "/#{@next_track.attributes['id']}", :method => "POST"}
+        %input{:type => 'hidden', :name => 'track_id', :value => @track.id}
+
+        - if @track.favorite
+          %input{:type => 'radio', :name => "quality", :value => "remove"} remove
+
+        - (1..5).each do |r|
+          %input{:type => 'radio', :name => "quality", :value => r, :checked => @track.quality == r || nil} #{r}
+          
+        &nbsp; &nbsp; 
+
+        - ["Ambient","House","Techno","Dubstep","DnB","Breaks","Other"].each do |s|
+          %input{:type => 'checkbox', :name => "style[#{s}]", :value => 'true', :checked => @styles.include?(s)||nil} #{s}
+
+        &nbsp; &nbsp; 
+        %input{:type => 'submit', :value => @next_track.attributes["title"]}
+
+    %hr
+      -# params.to_yaml
+      -# %a{:href => @next_track.attributes["id"]} #{@next_track.attributes["title"]}
+
+
+
+
+

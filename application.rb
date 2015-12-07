@@ -1,128 +1,89 @@
 require 'rubygems'
 require 'soundcloud'
-require 'sinatra'
-require 'dm-core'
-require 'dm-timestamps'
-#require 'oauth'
-require 'haml'
+#require 'sinatra'
+require 'oauth'
+#require 'haml'
+#require 'sass'
+#require 'rest_client'
+#require 'sinatra/url_for'
+#gem 'sinatra-static-assets'
+#require 'sinatra/static_assets'
+#require 'rgl/adjacency'
+#require 'rgl/dot'
+#require 'model'
+#require 'authorize'
 
-#enable :sessions
+# TODO page gets reloaded too often
 
-class Track
-	include DataMapper::Resource
-	property :id, Serial
-	property :sc_id, Integer
-	property :played, Integer, :default => 0
-	property :favorite, Boolean
-	#property :style, String
-	property :quality, Integer
-	property :energy, Integer
-	property :created_at, DateTime
-	property :updated_at, DateTime
+@@sc = Soundcloud.register :consumer_key        => 'tabcwIWB7dv9KT5Sy2rQ'
 
-	has n, :styles, :through => Resource
+#get '/' do
+#access_token = YAML.load_file("access_token.yaml")
+  #@sc = Soundcloud.register({:access_token => access_token})
+  @me = @@sc.User.find("Alfadeo")
+  #@me = @@sc.User.find("in-silico")
+  #dg=RGL::DirectedAdjacencyGraph.new
+  dot = "graph G {\nnode[shape=point]\n"
 
-	
-	def username
-   @@sc_client.Track.find(self.sc_id).attributes["user"].attributes["username"]
+  @me.fans.each do |fan|
+    dot << "\"#{@me.username}\" -- \"#{fan.username}\";\n"
+    #dg.add_edge(@me.username,fan.username)
+    fan.fans.each do |f|
+      dot << "\"#{fan.username}\" -- \"#{f.username}\";\n"
+      #dg.add_edge(fan.username,f.username)
+    end
+  end
+  dot << "}\n"
+  File.open("test.dot","w+"){|f| f.puts dot}
+  #dg.write_to_graphic_file('svg')
+  `neato -Tsvg test.dot > test.svg`
+  #@me.favorites.join("\n")
+#end
+=begin
+
+helpers do
+	def player(sc_track,autoplay=true)
+		@player_value = "http://player.soundcloud.com/player.swf?url=#{URI.encode sc_track.permalink_url}&amp;show_comments=false&amp;player_type=tiny&amp;auto_play=#{autoplay}"
+  	haml :player, :layout => false 
 	end
-
-	def method_missing name, *args
-		@@sc_client.Track.find(self.sc_id).attributes[name.to_s]
-	end
-
 end
 
-class Style
-	include DataMapper::Resource
-	property :id, Serial
-	property :name, String
-	has n, :tracks, :through => Resource
+get '/favorites/?' do
+	@tracks = Track.all(:favorite => true)
+	haml :index
 end
 
-class Playlist
-end
-
-class Player
-	#property :mode
-	#def follow_producer
-	#end
-	#def back
-	#end
-	#def follow_following
-	#end
-	#def toggle_favorites
-	#end
-end
-
-DataMapper::setup(:default, "sqlite3://#{Dir.pwd}/scc.sqlite3")
-DataMapper.auto_migrate! unless File.exists? "scc.sqlite3"
-
-@@sc_client = Soundcloud.register#('tabcwIWB7dv9KT5Sy2rQ','zFMrmC87pisbnEY3lAG7BlaghEPgqDKGl4iXNYd0')
-get '/?' do
-	#user = @@sc_client.User.find('in-silico')
-  @tracks = Track.all
-  haml :index
-end
-
-post '/:id' do
-	# save previous track
-	track = Track.get!(params[:track_id].to_i)
-	quality = params[:quality]
-	if quality
-		case quality
-		when "remove"
-			track.favorite = false
-			track.quality = nil
-		else
-			track.favorite = true
-			track.quality = quality
-		end
-		track.style = params[:style] if params['style']
-		track.energy = params[:energy] if params['energy']
-		track.styles = []
-		params[:style].each do |s,v| 
-			style = Style.first(:name => s)
-			style = Style.new(:name => s) unless style
-			style.save
-			track.styles << style
-		end
+get '/play/:username' do
+	puts params.inspect
+	if params[:favorite]
+		puts "FAVORITE" 
+		track = Track.get(params[:track_id].to_i)
+		track.favorite = true
 		track.save
 	end
-	
-	user = @@sc_client.User.find('in-silico')
-	@next_track = user.favorites.sort_by{ rand }.first
-	@track = Track.first(:sc_id => params[:id]) or @track = Track.create(:sc_id => params[:id])
-	@styles = @track.styles.collect{|s| s.name}
-	@played = @track.played
-	@track.played += 1
-	@track.save
-	haml :play
+	@username = params[:username]
+	puts @username
+	tracks = @@client.User.find(URI.encode params[:username]).tracks.collect{|t| t unless Track.first(:sc_id => t.id)}.compact
+	if tracks.empty?
+		redirect "/play/#{@username}i/next"
+	else
+		tracks.sort!{|a,b| Track.expected_quality(b) <=> Track.expected_quality(a)}
+		@sc_track = tracks.first
+		@track = Track.new(:sc_id => @sc_track.id)
+		@track.played += 1
+		@track.save
+		haml :play
+	end
 end
 
-get '/:id' do
-	user = @@sc_client.User.find('in-silico')
-	@next_track = user.favorites.sort_by{ rand }.first
-	@track = Track.first(:sc_id => params[:id]) or @track = Track.create(:sc_id => params[:id])
-	@styles = @track.styles.collect{|s| s.name}
-	@played = @track.played
-	@track.played += 1
-	@track.save
-	haml :play
+get '/play/:username/next' do
+	followings = Artist.followings(params[:username]).sort_by{rand}[0..2]
+	followings.sort!{|a,b| Artist.expected_quality(b) <=> Artist.expected_quality(a)}
+	redirect "/play/#{URI.encode followings.first}"
 end
 
-get '/:id/add_favorite' do
-	@track = Track.first(:sc_id => params[:id])
-	@track.favorite = true
-	@track.save
-	haml :play
+get '/style.css' do
+	headers 'Content-Type' => 'text/css; charset=utf-8'
+	sass :style
 end
-
-get '/:id/remove_favorite' do
-	@track = Track.first(:sc_id => params[:id])
-	@track.favorite = false
-	@track.save
-	haml :play
-end
-
-
+=end
